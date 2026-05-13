@@ -1,83 +1,99 @@
 import streamlit as st
 import pandas as pd
+import pydeck as pdk
 
-# Set page configuration
-st.set_page_config(page_title="Transit Insight - Origin/Destination Planner", layout="wide")
+st.set_page_config(page_title="Transit Insight - Route Map", layout="wide")
 
-# Load the data we created earlier
 @st.cache_data
 def load_data():
-    # This file contains the link between stops, routes, and sentiment
-    return pd.read_csv('route_planner_data.csv')
+    # Update the filename here to the smaller version
+    df = pd.read_csv('route_planner_map_data_small.csv')
+    return df
 
 df = load_data()
 
-# Custom CSS for the "Transit Insight" theme
-st.markdown("""
-    <style>
-    .main { background-color: #f5f5dc; }
-    .stButton>button { background-color: #808000; color: white; width: 100%; }
-    .route-card { background-color: white; padding: 20px; border-radius: 10px; border-left: 5px solid #808000; margin-bottom: 20px; box-shadow: 2px 2px 5px rgba(0,0,0,0.1); }
-    .sentiment-pos { color: #28a745; font-weight: bold; }
-    .sentiment-neg { color: #dc3545; font-weight: bold; }
-    </style>
-    """, unsafe_allow_html=True)
+st.title("🗺️ Interactive Route & Sentiment Map")
 
-st.title("🗺️ Transit Route & Sentiment Planner")
-st.write("Enter your origin and destination to find the best route and check station quality.")
-
-# Search Layout
-col_a, col_b = st.columns(2)
-with col_a:
-    origin = st.selectbox("Select Origin Stop:", options=[""] + sorted(df['Stop_search'].unique().tolist()))
-with col_b:
-    destination = st.selectbox("Select Destination Stop:", options=[""] + sorted(df['Stop_search'].unique().tolist()))
+# Sidebar for Search
+st.sidebar.header("Plan Your Journey")
+origin = st.sidebar.selectbox("Origin Station", options=[""] + sorted(df['Stop_name'].unique().tolist()))
+destination = st.sidebar.selectbox("Destination Station", options=[""] + sorted(df['Stop_name'].unique().tolist()))
 
 if origin and destination:
     if origin == destination:
-        st.warning("Origin and destination cannot be the same.")
+        st.warning("Please choose different stations.")
     else:
-        # Find routes that pass through the origin
-        origin_routes = set(df[df['Stop_search'] == origin]['Route_long_name'])
-        # Find routes that pass through the destination
-        dest_routes = set(df[df['Stop_search'] == destination]['Route_long_name'])
-        
-        # Find the intersection (routes that have both)
-        common_routes = origin_routes.intersection(dest_routes)
-        
+        # Find shared routes
+        orig_routes = set(df[df['Stop_name'] == origin]['Route_long_name'])
+        dest_routes = set(df[df['Stop_name'] == destination]['Route_long_name'])
+        common_routes = list(orig_routes.intersection(dest_routes))
+
         if common_routes:
-            st.subheader(f"Found {len(common_routes)} Suggestion(s)")
+            selected_route = st.selectbox("Select Route Suggestion:", common_routes)
             
-            for route in common_routes:
-                # Get route details
-                route_info = df[df['Route_long_name'] == route].iloc[0]
+            # Get the stop sequence for the selected route
+            route_data = df[df['Route_long_name'] == selected_route].drop_duplicates(subset=['Stop_name']).sort_values('Arrival_time')
+            
+            # Extract the segment between origin and destination
+            stops_list = route_data['Stop_name'].tolist()
+            try:
+                idx_start = stops_list.index(origin)
+                idx_end = stops_list.index(destination)
                 
-                # Get Sentiment for Origin
-                orig_data = df[(df['Stop_search'] == origin) & (df['Route_long_name'] == route)].iloc[0]
-                # Get Sentiment for Destination
-                dest_data = df[(df['Stop_search'] == destination) & (df['Route_long_name'] == route)].iloc[0]
+                # Handle direction (A to B or B to A)
+                if idx_start < idx_end:
+                    journey_segment = route_data.iloc[idx_start:idx_end+1]
+                else:
+                    journey_segment = route_data.iloc[idx_end:idx_start+1][::-1]
+
+                # --- MAP SECTION ---
+                st.subheader(f"Route Path: {selected_route}")
                 
-                # Display Route Card
-                st.markdown(f"""
-                <div class="route-card">
-                    <h3 style='margin:0;'>🚆 {route}</h3>
-                    <p style='color:gray;'>Transport Mode: {route_info['Transport_type']}</p>
-                    <hr>
-                    <div style='display: flex; justify-content: space-between;'>
-                        <div>
-                            <strong>Start: {origin}</strong><br>
-                            ⭐ Rating: {orig_data['avg_rating'] if pd.notnull(orig_data['avg_rating']) else 'N/A'}/5.0<br>
-                            Vibe: <span class='{"sentiment-pos" if orig_data["main_sentiment"] == "Positive" else "sentiment-neg" if orig_data["main_sentiment"] == "Negative" else ""}'>{orig_data['main_sentiment']}</span>
-                        </div>
-                        <div style='text-align: right;'>
-                            <strong>End: {destination}</strong><br>
-                            ⭐ Rating: {dest_data['avg_rating'] if pd.notnull(dest_data['avg_rating']) else 'N/A'}/5.0<br>
-                            Vibe: <span class='{"sentiment-pos" if dest_data["main_sentiment"] == "Positive" else "sentiment-neg" if dest_data["main_sentiment"] == "Negative" else ""}'>{dest_data['main_sentiment']}</span>
-                        </div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                view_state = pdk.ViewState(
+                    latitude=journey_segment['Stop_lat'].mean(),
+                    longitude=journey_segment['Stop_lon'].mean(),
+                    zoom=12, pitch=0
+                )
+
+                # Path Layer (Lines)
+                path_data = [{"path": journey_segment[['Stop_lon', 'Stop_lat']].values.tolist()}]
+                
+                layers = [
+                    pdk.Layer(
+                        "PathLayer",
+                        path_data,
+                        get_color=[128, 128, 0], # Olive Gold
+                        width_min_pixels=5,
+                    ),
+                    pdk.Layer(
+                        "ScatterplotLayer",
+                        journey_segment,
+                        get_position="[Stop_lon, Stop_lat]",
+                        get_color=[255, 255, 255],
+                        get_radius=100,
+                        pickable=True,
+                    ),
+                ]
+
+                st.pydeck_chart(pdk.Deck(layers=layers, initial_view_state=view_state, tooltip={"text": "{Stop_name}"}))
+
+                # --- DIRECTIONS & SENTIMENT SECTION ---
+                st.subheader("Step-by-Step Directions & Station Vibe")
+                
+                for i, (_, row) in enumerate(journey_segment.iterrows()):
+                    icon = "🟢" if i == 0 else "🔴" if i == len(journey_segment)-1 else "⚪"
+                    with st.expander(f"{icon} Stop {i+1}: {row['Stop_name']}"):
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.write(f"**Rating:** {row['avg_rating'] if pd.notnull(row['avg_rating']) else 'N/A'} ⭐")
+                        with col2:
+                            sentiment = row['main_sentiment'] if pd.notnull(row['main_sentiment']) else "No Data"
+                            color = "green" if sentiment == "Positive" else "red" if sentiment == "Negative" else "orange"
+                            st.markdown(f"**Sentiment:** :{color}[{sentiment}]")
+
+            except ValueError:
+                st.error("Could not determine sequence. Try another route.")
         else:
-            st.error("No direct routes found between these two stops. Please try another destination.")
+            st.error("No direct route found.")
 else:
-    st.info("Select both an origin and a destination to see route suggestions.")
+    st.info("Select your starting point and destination in the sidebar.")
