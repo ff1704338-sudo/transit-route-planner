@@ -20,7 +20,7 @@ st.markdown("""
     .sentiment-neg { color: red; font-weight: bold; }
     .sentiment-neu { color: #808000; font-weight: bold; }
     </style>
-    """, unsafe_allow_密=True)
+    """, unsafe_allow_html=True) # Corrected parameter name
 
 st.title("📍 Transit Route & Sentiment Planner")
 st.write("Search for a stop to find available routes and see commuter feedback.")
