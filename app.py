@@ -2,98 +2,99 @@ import streamlit as st
 import pandas as pd
 import pydeck as pdk
 
-st.set_page_config(page_title="Transit Insight - Route Map", layout="wide")
+st.set_page_config(page_title="Transit Insight - Route Planner", layout="wide")
 
 @st.cache_data
 def load_data():
-    # Update the filename here to the smaller version
-    df = pd.read_csv('route_planner_map_data_small.csv')
-    return df
+    # Loading the compressed dataset with Stop_search and coordinates
+    return pd.read_csv('route_planner_map_data_small.csv')
 
 df = load_data()
 
-st.title("🗺️ Interactive Route & Sentiment Map")
+st.title("📍 Transit Route & Sentiment Planner")
+st.write("Plan your trip using the exact stop names from our transit master and review datasets.")
 
-# Sidebar for Search
-st.sidebar.header("Plan Your Journey")
-origin = st.sidebar.selectbox("Origin Station", options=[""] + sorted(df['Stop_name'].unique().tolist()))
-destination = st.sidebar.selectbox("Destination Station", options=[""] + sorted(df['Stop_name'].unique().tolist()))
+# Sidebar for Search using 'Stop_search'
+st.sidebar.header("Journey Planner")
+# User searches using 'Stop_search' as requested
+origin_search = st.sidebar.selectbox("Select Origin (Stop Search):", options=[""] + sorted(df['Stop_search'].unique().tolist()))
+dest_search = st.sidebar.selectbox("Select Destination (Stop Search):", options=[""] + sorted(df['Stop_search'].unique().tolist()))
 
-if origin and destination:
-    if origin == destination:
-        st.warning("Please choose different stations.")
+if origin_search and dest_search:
+    if origin_search == dest_search:
+        st.warning("Origin and Destination cannot be the same stop.")
     else:
-        # Find shared routes
-        orig_routes = set(df[df['Stop_name'] == origin]['Route_long_name'])
-        dest_routes = set(df[df['Stop_name'] == destination]['Route_long_name'])
-        common_routes = list(orig_routes.intersection(dest_routes))
+        # Find shared routes based on the Stop_search column
+        origin_routes = set(df[df['Stop_search'] == origin_search]['Route_long_name'])
+        dest_routes = set(df[df['Stop_search'] == dest_search]['Route_long_name'])
+        common_routes = list(origin_routes.intersection(dest_routes))
 
         if common_routes:
-            selected_route = st.selectbox("Select Route Suggestion:", common_routes)
+            selected_route = st.selectbox("Available Route Suggestions:", common_routes)
             
-            # Get the stop sequence for the selected route
-            route_data = df[df['Route_long_name'] == selected_route].drop_duplicates(subset=['Stop_name']).sort_values('Arrival_time')
+            # Filter data for the specific route to determine stop sequence
+            route_data = df[df['Route_long_name'] == selected_route].drop_duplicates(subset=['Stop_search'])
             
-            # Extract the segment between origin and destination
-            stops_list = route_data['Stop_name'].tolist()
+            # Create a sequence list for the specific route
+            stops_list = route_data['Stop_search'].tolist()
+            
             try:
-                idx_start = stops_list.index(origin)
-                idx_end = stops_list.index(destination)
+                idx_start = stops_list.index(origin_search)
+                idx_end = stops_list.index(dest_search)
                 
-                # Handle direction (A to B or B to A)
+                # Determine the direction of travel along the route list
                 if idx_start < idx_end:
                     journey_segment = route_data.iloc[idx_start:idx_end+1]
                 else:
                     journey_segment = route_data.iloc[idx_end:idx_start+1][::-1]
 
-                # --- MAP SECTION ---
-                st.subheader(f"Route Path: {selected_route}")
+                # --- INTERACTIVE MAP ---
+                st.subheader(f"Map View: {selected_route}")
                 
                 view_state = pdk.ViewState(
                     latitude=journey_segment['Stop_lat'].mean(),
                     longitude=journey_segment['Stop_lon'].mean(),
-                    zoom=12, pitch=0
+                    zoom=13, pitch=0
                 )
 
-                # Path Layer (Lines)
-                path_data = [{"path": journey_segment[['Stop_lon', 'Stop_lat']].values.tolist()}]
-                
                 layers = [
                     pdk.Layer(
                         "PathLayer",
-                        path_data,
-                        get_color=[128, 128, 0], # Olive Gold
-                        width_min_pixels=5,
+                        [{"path": journey_segment[['Stop_lon', 'Stop_lat']].values.tolist()}],
+                        get_color=[128, 128, 0], # Transit Insight Olive Gold
+                        width_min_pixels=6,
                     ),
                     pdk.Layer(
                         "ScatterplotLayer",
                         journey_segment,
                         get_position="[Stop_lon, Stop_lat]",
                         get_color=[255, 255, 255],
-                        get_radius=100,
+                        get_radius=80,
                         pickable=True,
                     ),
                 ]
 
-                st.pydeck_chart(pdk.Deck(layers=layers, initial_view_state=view_state, tooltip={"text": "{Stop_name}"}))
+                st.pydeck_chart(pdk.Deck(layers=layers, initial_view_state=view_state, tooltip={"text": "{Stop_search}"}))
 
-                # --- DIRECTIONS & SENTIMENT SECTION ---
-                st.subheader("Step-by-Step Directions & Station Vibe")
+                # --- STEP-BY-STEP DIRECTIONS & SENTIMENT ---
+                st.subheader("Journey Steps & Station Sentiment")
                 
                 for i, (_, row) in enumerate(journey_segment.iterrows()):
-                    icon = "🟢" if i == 0 else "🔴" if i == len(journey_segment)-1 else "⚪"
-                    with st.expander(f"{icon} Stop {i+1}: {row['Stop_name']}"):
+                    # Use 'Stop_search' for the display to maintain consistency
+                    label = "START" if i == 0 else "END" if i == len(journey_segment)-1 else f"Step {i+1}"
+                    with st.expander(f"{label}: {row['Stop_search']}"):
                         col1, col2 = st.columns(2)
                         with col1:
-                            st.write(f"**Rating:** {row['avg_rating'] if pd.notnull(row['avg_rating']) else 'N/A'} ⭐")
+                            rating = f"{row['avg_rating']:.1f} ⭐" if pd.notnull(row['avg_rating']) else "No Rating"
+                            st.write(f"**Average Rating:** {rating}")
                         with col2:
-                            sentiment = row['main_sentiment'] if pd.notnull(row['main_sentiment']) else "No Data"
+                            sentiment = row['main_sentiment'] if pd.notnull(row['main_sentiment']) else "No Reviews"
                             color = "green" if sentiment == "Positive" else "red" if sentiment == "Negative" else "orange"
-                            st.markdown(f"**Sentiment:** :{color}[{sentiment}]")
+                            st.markdown(f"**Commuter Vibe:** :{color}[{sentiment}]")
 
             except ValueError:
-                st.error("Could not determine sequence. Try another route.")
+                st.error("Route sequence error. Please select another suggested route.")
         else:
-            st.error("No direct route found.")
+            st.error("No direct route connects these two 'Stop Search' locations.")
 else:
-    st.info("Select your starting point and destination in the sidebar.")
+    st.info("Select an Origin and Destination from the sidebar to begin.")
