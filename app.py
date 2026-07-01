@@ -109,19 +109,21 @@ st.markdown("""
     }
 
     /* Info / warning / error boxes softened to match palette */
-    div[data-testid="stAlert"] {
-        border-radius: 8px;
+    div[data-testid="stAlert"],
+    div[data-testid="stAlert"] * {
+        background-color: transparent !important;
     }
-
-    /* st.info() - replace default blue with warm taupe/cream tones */
-    div[data-testid="stAlertContentInfo"],
-    div[data-testid="stAlert"]:has(div[data-testid="stAlertContentInfo"]) {
+    div[data-testid="stAlert"] {
         background-color: #E6DCD2 !important;
         border: 1px solid #C9B399 !important;
+        border-radius: 8px;
+        padding: 16px 20px !important;
     }
-    div[data-testid="stAlertContentInfo"] p,
-    div[data-testid="stAlertContentInfo"] svg {
+    div[data-testid="stAlert"] p,
+    div[data-testid="stAlert"] span {
         color: #14213D !important;
+    }
+    div[data-testid="stAlert"] svg {
         fill: #8C7355 !important;
     }
     </style>
