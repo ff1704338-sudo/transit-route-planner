@@ -7,44 +7,110 @@ st.set_page_config(page_title="Transit Insight - Comprehensive Route Planner", l
 # --- TRANSIT INSIGHT BRAND THEME CUSTOMIZATION ---
 st.markdown("""
     <style>
+    /* ---------- Palette ----------
+       Cream background : #F4EBE1
+       Taupe/brown accent: #AD8B6A / #8C7355
+       Dark navy heading : #14213D
+       Body text         : #3B3B3B
+    ------------------------------- */
+
     /* Main app background (Cream) and default text */
     .stApp {
         background-color: #F4EBE1;
-        color: #2F2F2F;
+        color: #3B3B3B;
     }
-    
-    /* Sidebar styling */
+
+    /* Sidebar styling - matches header taupe from site nav */
     section[data-testid="stSidebar"] {
-        background-color: #D3C3B3 !important;
+        background: linear-gradient(180deg, #AD8B6A 0%, #9C7C5C 100%) !important;
+        border-right: 1px solid #8C7355;
     }
-    
-    /* Sidebar text color adjustments */
-    section[data-testid="stSidebar"] h1, 
-    section[data-testid="stSidebar"] h2, 
-    section[data-testid="stSidebar"] h3, 
-    section[data-testid="stSidebar"] label {
-        color: #4A3E3D !important;
-    }
-
-    /* Style titles and headers to use the dominant brown color */
-    h1, h2, h3, h4, h5, h6 {
-        color: #4A3E3D !important;
+    section[data-testid="stSidebar"] h1,
+    section[data-testid="stSidebar"] h2,
+    section[data-testid="stSidebar"] h3,
+    section[data-testid="stSidebar"] label,
+    section[data-testid="stSidebar"] p {
+        color: #FBF6F0 !important;
         font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        letter-spacing: 0.5px;
+    }
+    section[data-testid="stSidebar"] .stSelectbox > div > div {
+        background-color: #F4EBE1 !important;
+        border-radius: 6px;
+        border: 1px solid #7A6250;
     }
 
-    /* Target specific metric titles & values */
+    /* Headings - dark navy, matching hero title on the homepage */
+    h1, h2, h3, h4, h5, h6 {
+        color: #14213D !important;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+    }
+
+    /* Main page title styled like the homepage hero */
+    h1 {
+        text-transform: uppercase;
+        border-bottom: 4px solid #AD8B6A;
+        padding-bottom: 12px;
+        margin-bottom: 24px;
+    }
+
+    /* Metric cards */
+    div[data-testid="stMetric"] {
+        background-color: #FFFFFF;
+        border: 1px solid #E3D5C6;
+        border-radius: 10px;
+        padding: 16px 18px;
+        box-shadow: 0 2px 6px rgba(74, 62, 61, 0.08);
+    }
     [data-testid="stMetricValue"] {
         color: #8C7355 !important;
+        font-weight: 700;
     }
     [data-testid="stMetricLabel"] {
-        color: #4A3E3D !important;
+        color: #14213D !important;
+        font-weight: 600;
     }
 
-    /* Custom stylistic adjustments for expanders */
+    /* Expanders styled as clean route-step cards */
     .streamlit-expanderHeader {
-        background-color: #E6DCD2 !important;
-        color: #4A3E3D !important;
-        border-radius: 4px;
+        background-color: #FFFFFF !important;
+        color: #14213D !important;
+        border: 1px solid #E3D5C6 !important;
+        border-radius: 8px;
+        font-weight: 600;
+    }
+    .streamlit-expanderContent {
+        background-color: #FBF6F0 !important;
+        border: 1px solid #E3D5C6 !important;
+        border-top: none !important;
+        border-radius: 0 0 8px 8px;
+    }
+
+    /* Buttons / selects styled with brand brown */
+    .stButton>button {
+        background-color: #8C7355;
+        color: #FBF6F0;
+        border-radius: 6px;
+        border: none;
+        padding: 8px 20px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+    }
+    .stButton>button:hover {
+        background-color: #6F5A41;
+        color: #FBF6F0;
+    }
+
+    /* Divider tint */
+    hr {
+        border-color: #D9C7B4 !important;
+    }
+
+    /* Info / warning / error boxes softened to match palette */
+    div[data-testid="stAlert"] {
+        border-radius: 8px;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -77,11 +143,11 @@ if origin_search and dest_search:
             selected_route = st.selectbox("Available Route Suggestions:", common_routes)
             route_data = df[df['Route_long_name'] == selected_route].drop_duplicates(subset=['Stop_search'])
             stops_list = route_data['Stop_search'].tolist()
-            
+
             try:
                 idx_start = stops_list.index(origin_search)
                 idx_end = stops_list.index(dest_search)
-                
+
                 # Get the journey segment
                 if idx_start < idx_end:
                     journey_segment = route_data.iloc[idx_start:idx_end+1]
@@ -90,12 +156,12 @@ if origin_search and dest_search:
 
                 # --- OVERALL SUMMARY SECTION ---
                 st.subheader("🏁 Overall Journey Summary")
-                
+
                 # Calculate averages for the segment
                 avg_journey_rating = journey_segment['avg_rating'].mean()
                 avg_journey_sentiment = journey_segment['avg_sentiment'].mean()
-                
-                # Determine category for overall sentiment
+
+                # Determine category for overall sentiment (kept legible against cream/navy theme)
                 if avg_journey_sentiment > 0.05:
                     overall_cat = "Positive"
                     overall_color = "#2E6F40"  # Soft forest green
@@ -110,8 +176,17 @@ if origin_search and dest_search:
                 m_col1, m_col2, m_col3 = st.columns(3)
                 m_col1.metric("Total Stops", len(journey_segment))
                 m_col2.metric("Overall Journey Rating", f"{avg_journey_rating:.2f} / 5.0")
-                m_col3.markdown(f"**Overall Sentiment:** <br><span style='font-size:24px; color:{overall_color}; font-weight:bold;'>{overall_cat}</span>", unsafe_allow_html=True)
-                
+                m_col3.markdown(
+                    f"""
+                    <div style='background-color:#FFFFFF; border:1px solid #E3D5C6; border-radius:10px;
+                                padding:16px 18px; box-shadow: 0 2px 6px rgba(74, 62, 61, 0.08);'>
+                        <span style='color:#14213D; font-weight:600; font-size:14px;'>Overall Sentiment</span><br>
+                        <span style='font-size:24px; color:{overall_color}; font-weight:800;'>{overall_cat}</span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
                 st.divider()
 
                 # --- MAP VIEW ---
@@ -121,31 +196,30 @@ if origin_search and dest_search:
                     longitude=journey_segment['Stop_lon'].mean(),
                     zoom=13, pitch=0
                 )
-                
-                # Pydeck layers themed to match the website (Deep brown paths & cream/white stop points)
+
+                # Pydeck layers themed to match the website (brown paths, cream/white stop points)
                 layers = [
                     pdk.Layer(
-                        "PathLayer", 
+                        "PathLayer",
                         [{"path": journey_segment[['Stop_lon', 'Stop_lat']].values.tolist()}],
-                        get_color=[74, 62, 61],  # Deep accent brown theme matching the website header
+                        get_color=[173, 139, 106],  # Taupe accent, matches nav bar
                         width_min_pixels=6
                     ),
                     pdk.Layer(
-                        "ScatterplotLayer", 
-                        journey_segment, 
+                        "ScatterplotLayer",
+                        journey_segment,
                         get_position="[Stop_lon, Stop_lat]",
-                        get_color=[244, 235, 225],  # Cream inner color
-                        get_line_color=[74, 62, 61], # Brown border stroke
+                        get_color=[251, 246, 240],  # Cream inner color
+                        get_line_color=[20, 33, 61],  # Navy border stroke, matches hero heading
                         stroked=True,
-                        get_radius=80, 
+                        get_radius=80,
                         pickable=True
                     ),
                 ]
-                # Using mapbox light style to blend naturally with the cream theme layout
                 st.pydeck_chart(pdk.Deck(
-                    map_style="mapbox://styles/mapbox/light-v10", 
-                    layers=layers, 
-                    initial_view_state=view_state, 
+                    map_style="mapbox://styles/mapbox/light-v10",
+                    layers=layers,
+                    initial_view_state=view_state,
                     tooltip={"text": "{Stop_search}"}
                 ))
 
