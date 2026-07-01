@@ -4,8 +4,55 @@ import pydeck as pdk
 
 st.set_page_config(page_title="Transit Insight - Comprehensive Route Planner", layout="wide")
 
+# --- TRANSIT INSIGHT BRAND THEME CUSTOMIZATION ---
+st.markdown("""
+    <style>
+    /* Main app background (Cream) and default text */
+    .stApp {
+        background-color: #F4EBE1;
+        color: #2F2F2F;
+    }
+    
+    /* Sidebar styling */
+    section[data-testid="stSidebar"] {
+        background-color: #D3C3B3 !important;
+    }
+    
+    /* Sidebar text color adjustments */
+    section[data-testid="stSidebar"] h1, 
+    section[data-testid="stSidebar"] h2, 
+    section[data-testid="stSidebar"] h3, 
+    section[data-testid="stSidebar"] label {
+        color: #4A3E3D !important;
+    }
+
+    /* Style titles and headers to use the dominant brown color */
+    h1, h2, h3, h4, h5, h6 {
+        color: #4A3E3D !important;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    }
+
+    /* Target specific metric titles & values */
+    [data-testid="stMetricValue"] {
+        color: #8C7355 !important;
+    }
+    [data-testid="stMetricLabel"] {
+        color: #4A3E3D !important;
+    }
+
+    /* Custom stylistic adjustments for expanders */
+    .streamlit-expanderHeader {
+        background-color: #E6DCD2 !important;
+        color: #4A3E3D !important;
+        border-radius: 4px;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+
 @st.cache_data
 def load_data():
+    # Placeholder: Replace with your actual file pathway
     return pd.read_csv('route_planner_map_data_small.csv')
 
 df = load_data()
@@ -51,13 +98,13 @@ if origin_search and dest_search:
                 # Determine category for overall sentiment
                 if avg_journey_sentiment > 0.05:
                     overall_cat = "Positive"
-                    overall_color = "green"
+                    overall_color = "#2E6F40"  # Soft forest green
                 elif avg_journey_sentiment < -0.05:
                     overall_cat = "Negative"
-                    overall_color = "red"
+                    overall_color = "#A94442"  # Muted deep red
                 else:
                     overall_cat = "Neutral"
-                    overall_color = "orange"
+                    overall_color = "#C38D39"  # Warm amber/ochre
 
                 # Display Metrics
                 m_col1, m_col2, m_col3 = st.columns(3)
@@ -74,13 +121,33 @@ if origin_search and dest_search:
                     longitude=journey_segment['Stop_lon'].mean(),
                     zoom=13, pitch=0
                 )
+                
+                # Pydeck layers themed to match the website (Deep brown paths & cream/white stop points)
                 layers = [
-                    pdk.Layer("PathLayer", [{"path": journey_segment[['Stop_lon', 'Stop_lat']].values.tolist()}],
-                              get_color=[128, 128, 0], width_min_pixels=6),
-                    pdk.Layer("ScatterplotLayer", journey_segment, get_position="[Stop_lon, Stop_lat]",
-                              get_color=[255, 255, 255], get_radius=80, pickable=True),
+                    pdk.Layer(
+                        "PathLayer", 
+                        [{"path": journey_segment[['Stop_lon', 'Stop_lat']].values.tolist()}],
+                        get_color=[74, 62, 61],  # Deep accent brown theme matching the website header
+                        width_min_pixels=6
+                    ),
+                    pdk.Layer(
+                        "ScatterplotLayer", 
+                        journey_segment, 
+                        get_position="[Stop_lon, Stop_lat]",
+                        get_color=[244, 235, 225],  # Cream inner color
+                        get_line_color=[74, 62, 61], # Brown border stroke
+                        stroked=True,
+                        get_radius=80, 
+                        pickable=True
+                    ),
                 ]
-                st.pydeck_chart(pdk.Deck(layers=layers, initial_view_state=view_state, tooltip={"text": "{Stop_search}"}))
+                # Using mapbox light style to blend naturally with the cream theme layout
+                st.pydeck_chart(pdk.Deck(
+                    map_style="mapbox://styles/mapbox/light-v10", 
+                    layers=layers, 
+                    initial_view_state=view_state, 
+                    tooltip={"text": "{Stop_search}"}
+                ))
 
                 # --- STEP-BY-STEP DIRECTIONS ---
                 st.subheader("Journey Steps & Individual Station Sentiment")
