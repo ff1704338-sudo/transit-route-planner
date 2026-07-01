@@ -112,6 +112,18 @@ st.markdown("""
     div[data-testid="stAlert"] {
         border-radius: 8px;
     }
+
+    /* st.info() - replace default blue with warm taupe/cream tones */
+    div[data-testid="stAlertContentInfo"],
+    div[data-testid="stAlert"]:has(div[data-testid="stAlertContentInfo"]) {
+        background-color: #E6DCD2 !important;
+        border: 1px solid #C9B399 !important;
+    }
+    div[data-testid="stAlertContentInfo"] p,
+    div[data-testid="stAlertContentInfo"] svg {
+        color: #14213D !important;
+        fill: #8C7355 !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
