@@ -40,7 +40,7 @@ st.markdown("""
         border: 1px solid #7A6250;
     }
 
-    /* Sidebar selectbox: force ALL text/icons inside the box to black, regardless of internal DOM/class names */
+    /* Sidebar selectbox: force text inside the box to black */
     section[data-testid="stSidebar"] .stSelectbox div,
     section[data-testid="stSidebar"] .stSelectbox span,
     section[data-testid="stSidebar"] .stSelectbox p {
@@ -48,12 +48,39 @@ st.markdown("""
         opacity: 1 !important;
         -webkit-text-fill-color: #000000 !important;
     }
+
+    /* Hide the original (broken) dropdown icon entirely */
     section[data-testid="stSidebar"] .stSelectbox svg,
-    section[data-testid="stSidebar"] .stSelectbox svg path {
-        fill: #000000 !important;
-        stroke: #000000 !important;
-        color: #000000 !important;
-        opacity: 1 !important;
+    section[data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] svg,
+    section[data-testid="stSidebar"] .stSelectbox svg * {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        width: 0 !important;
+        height: 0 !important;
+    }
+
+    /* In case the icon is a background/mask div rather than an svg, strip its background too */
+    section[data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] > div:last-child {
+        background: transparent !important;
+        background-image: none !important;
+        background-color: transparent !important;
+    }
+    section[data-testid="stSidebar"] .stSelectbox > div > div {
+        position: relative;
+    }
+    section[data-testid="stSidebar"] .stSelectbox > div > div::after {
+        content: "";
+        position: absolute;
+        right: 16px;
+        top: 50%;
+        width: 0;
+        height: 0;
+        transform: translateY(-50%);
+        border-left: 6px solid transparent;
+        border-right: 6px solid transparent;
+        border-top: 7px solid #14213D;
+        pointer-events: none;
     }
 
     /* Headings - dark navy, matching hero title on the homepage */
