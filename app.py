@@ -131,6 +131,19 @@ st.markdown("""
         border-radius: 0 0 8px 8px;
     }
 
+    /* Expander header text -> white (covers current Streamlit DOM: details/summary structure) */
+    [data-testid="stExpander"] summary,
+    [data-testid="stExpander"] summary p,
+    [data-testid="stExpander"] summary span,
+    [data-testid="stExpander"] summary div,
+    [data-testid="stExpanderToggleIcon"],
+    [data-testid="stExpander"] svg {
+        color: #FFFFFF !important;
+        fill: #FFFFFF !important;
+        -webkit-text-fill-color: #FFFFFF !important;
+        opacity: 1 !important;
+    }
+
     /* Buttons / selects styled with brand brown */
     .stButton>button {
         background-color: #8C7355;
