@@ -34,18 +34,22 @@ st.markdown("""
         font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         letter-spacing: 0.5px;
     }
-    
-    /* MODIFIED: Added color rule to make chosen option/placeholder text black */
     section[data-testid="stSidebar"] .stSelectbox > div > div {
         background-color: #F4EBE1 !important;
         border-radius: 6px;
         border: 1px solid #7A6250;
-        color: #000000 !important; 
     }
-    
-    /* Ensures nested text inside the select container respects the black color */
-    section[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] * {
-        color: #000000 !important;
+
+    /* Sidebar selectbox: default placeholder text + selected value text -> black/navy */
+    section[data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] div,
+    section[data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] span {
+        color: #14213D !important;
+    }
+
+    /* Sidebar selectbox: dropdown arrow icon -> black/navy */
+    section[data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] svg {
+        fill: #14213D !important;
+        color: #14213D !important;
     }
 
     /* Headings - dark navy, matching hero title on the homepage */
@@ -140,6 +144,7 @@ st.markdown("""
 
 @st.cache_data
 def load_data():
+    # Placeholder: Replace with your actual file pathway
     return pd.read_csv('route_planner_map_data_small.csv')
 
 df = load_data()
@@ -148,13 +153,14 @@ st.title("📍 Transit Route & Sentiment Planner")
 
 # Sidebar for Search
 st.sidebar.header("Journey Planner")
-origin_search = st.sidebar.selectbox("Select Origin (Stop Search):", options=[""] + sorted(df['Stop_search'].unique().tolist()))
-dest_search = st.sidebar.selectbox("Select Destination (Stop Search):", options=[""] + sorted(df['Stop_search'].unique().tolist()))
+origin_search = st.sidebar.selectbox("Select Origin:", options=[""] + sorted(df['Stop_search'].unique().tolist()))
+dest_search = st.sidebar.selectbox("Select Destination:", options=[""] + sorted(df['Stop_search'].unique().tolist()))
 
 if origin_search and dest_search:
     if origin_search == dest_search:
         st.warning("Origin and Destination cannot be the same.")
     else:
+        # Find shared routes
         origin_routes = set(df[df['Stop_search'] == origin_search]['Route_long_name'])
         dest_routes = set(df[df['Stop_search'] == dest_search]['Route_long_name'])
         common_routes = list(origin_routes.intersection(dest_routes))
@@ -168,26 +174,31 @@ if origin_search and dest_search:
                 idx_start = stops_list.index(origin_search)
                 idx_end = stops_list.index(dest_search)
 
+                # Get the journey segment
                 if idx_start < idx_end:
                     journey_segment = route_data.iloc[idx_start:idx_end+1]
                 else:
                     journey_segment = route_data.iloc[idx_end:idx_start+1][::-1]
 
+                # --- OVERALL SUMMARY SECTION ---
                 st.subheader("🏁 Overall Journey Summary")
 
+                # Calculate averages for the segment
                 avg_journey_rating = journey_segment['avg_rating'].mean()
                 avg_journey_sentiment = journey_segment['avg_sentiment'].mean()
 
+                # Determine category for overall sentiment (kept legible against cream/navy theme)
                 if avg_journey_sentiment > 0.05:
                     overall_cat = "Positive"
-                    overall_color = "#2E6F40"
+                    overall_color = "#2E6F40"  # Soft forest green
                 elif avg_journey_sentiment < -0.05:
                     overall_cat = "Negative"
-                    overall_color = "#A94442"
+                    overall_color = "#A94442"  # Muted deep red
                 else:
                     overall_cat = "Neutral"
-                    overall_color = "#C38D39"
+                    overall_color = "#C38D39"  # Warm amber/ochre
 
+                # Display Metrics
                 m_col1, m_col2, m_col3 = st.columns(3)
                 m_col1.metric("Total Stops", len(journey_segment))
                 m_col2.metric("Overall Journey Rating", f"{avg_journey_rating:.2f} / 5.0")
@@ -204,6 +215,7 @@ if origin_search and dest_search:
 
                 st.divider()
 
+                # --- MAP VIEW ---
                 st.subheader(f"Map View: {selected_route}")
                 view_state = pdk.ViewState(
                     latitude=journey_segment['Stop_lat'].mean(),
@@ -211,19 +223,20 @@ if origin_search and dest_search:
                     zoom=13, pitch=0
                 )
 
+                # Pydeck layers themed to match the website (brown paths, cream/white stop points)
                 layers = [
                     pdk.Layer(
                         "PathLayer",
                         [{"path": journey_segment[['Stop_lon', 'Stop_lat']].values.tolist()}],
-                        get_color=[173, 139, 106],
+                        get_color=[173, 139, 106],  # Taupe accent, matches nav bar
                         width_min_pixels=6
                     ),
                     pdk.Layer(
                         "ScatterplotLayer",
                         journey_segment,
                         get_position="[Stop_lon, Stop_lat]",
-                        get_color=[251, 246, 240],
-                        get_line_color=[20, 33, 61],
+                        get_color=[251, 246, 240],  # Cream inner color
+                        get_line_color=[20, 33, 61],  # Navy border stroke, matches hero heading
                         stroked=True,
                         get_radius=80,
                         pickable=True
@@ -236,6 +249,7 @@ if origin_search and dest_search:
                     tooltip={"text": "{Stop_search}"}
                 ))
 
+                # --- STEP-BY-STEP DIRECTIONS ---
                 st.subheader("Journey Steps & Individual Station Sentiment")
                 for i, (_, row) in enumerate(journey_segment.iterrows()):
                     label = "START" if i == 0 else "END" if i == len(journey_segment)-1 else f"Stop {i+1}"
