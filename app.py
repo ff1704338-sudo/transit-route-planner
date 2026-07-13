@@ -144,6 +144,13 @@ st.markdown("""
         opacity: 1 !important;
     }
 
+    /* Expander header (collapsed box) -> black background so white text is visible */
+    [data-testid="stExpander"] summary {
+        background-color: #000000 !important;
+        border-radius: 8px;
+        padding: 8px 14px !important;
+    }
+
     /* Buttons / selects styled with brand brown */
     .stButton>button {
         background-color: #8C7355;
