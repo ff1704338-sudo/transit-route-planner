@@ -274,7 +274,8 @@ if origin_search and dest_search:
                     ),
                 ]
                 st.pydeck_chart(pdk.Deck(
-                    map_style="mapbox://styles/mapbox/light-v10",
+                    map_provider="carto",
+                    map_style="light",
                     layers=layers,
                     initial_view_state=view_state,
                     tooltip={"text": "{Stop_search}"}
