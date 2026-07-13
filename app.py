@@ -40,27 +40,20 @@ st.markdown("""
         border: 1px solid #7A6250;
     }
 
-    /* Sidebar selectbox: default placeholder text + selected value text -> black/navy */
-    section[data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] *,
-    section[data-testid="stSidebar"] div[data-baseweb="select"] *,
-    section[data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] div[class*="singleValue"],
-    section[data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] div[class*="placeholder"] {
-        color: #14213D !important;
+    /* Sidebar selectbox: force ALL text/icons inside the box to black, regardless of internal DOM/class names */
+    section[data-testid="stSidebar"] .stSelectbox div,
+    section[data-testid="stSidebar"] .stSelectbox span,
+    section[data-testid="stSidebar"] .stSelectbox p {
+        color: #000000 !important;
         opacity: 1 !important;
-        -webkit-text-fill-color: #14213D !important;
+        -webkit-text-fill-color: #000000 !important;
     }
-
-    /* Sidebar selectbox: dropdown arrow icon -> black/navy */
-    section[data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] svg,
-    section[data-testid="stSidebar"] div[data-baseweb="select"] svg {
-        fill: #14213D !important;
-        color: #14213D !important;
+    section[data-testid="stSidebar"] .stSelectbox svg,
+    section[data-testid="stSidebar"] .stSelectbox svg path {
+        fill: #000000 !important;
+        stroke: #000000 !important;
+        color: #000000 !important;
         opacity: 1 !important;
-    }
-    section[data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] svg path,
-    section[data-testid="stSidebar"] div[data-baseweb="select"] svg path {
-        fill: #14213D !important;
-        stroke: #14213D !important;
     }
 
     /* Headings - dark navy, matching hero title on the homepage */
