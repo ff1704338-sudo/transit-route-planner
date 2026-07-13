@@ -41,15 +41,26 @@ st.markdown("""
     }
 
     /* Sidebar selectbox: default placeholder text + selected value text -> black/navy */
-    section[data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] div,
-    section[data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] span {
+    section[data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] *,
+    section[data-testid="stSidebar"] div[data-baseweb="select"] *,
+    section[data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] div[class*="singleValue"],
+    section[data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] div[class*="placeholder"] {
         color: #14213D !important;
+        opacity: 1 !important;
+        -webkit-text-fill-color: #14213D !important;
     }
 
     /* Sidebar selectbox: dropdown arrow icon -> black/navy */
-    section[data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] svg {
+    section[data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] svg,
+    section[data-testid="stSidebar"] div[data-baseweb="select"] svg {
         fill: #14213D !important;
         color: #14213D !important;
+        opacity: 1 !important;
+    }
+    section[data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] svg path,
+    section[data-testid="stSidebar"] div[data-baseweb="select"] svg path {
+        fill: #14213D !important;
+        stroke: #14213D !important;
     }
 
     /* Headings - dark navy, matching hero title on the homepage */
