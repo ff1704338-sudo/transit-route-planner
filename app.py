@@ -1,3 +1,4 @@
+import base64
 import datetime
 
 import streamlit as st
@@ -378,12 +379,31 @@ if origin_search and dest_search:
             journey_segment = journey_segment.copy()
             journey_segment['marker_color'] = [_marker_color(i) for i in range(len(journey_segment))]
             journey_segment['marker_radius'] = [_marker_radius(i) for i in range(len(journey_segment))]
-            journey_segment['stop_label'] = [
-                "START" if i == 0 else "END" if i == last_idx else ""
-                for i in range(len(journey_segment))
-            ]
 
-            endpoints = journey_segment.iloc[[0, last_idx]]
+            # Self-contained pin icons (no external image fetch needed):
+            # green circle + play-style triangle for START, red circle +
+            # square for END.
+            start_icon_svg = (
+                "<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'>"
+                "<circle cx='32' cy='32' r='29' fill='#2E6F40' stroke='#FBF6F0' stroke-width='4'/>"
+                "<polygon points='24,18 24,46 47,32' fill='#FBF6F0'/>"
+                "</svg>"
+            )
+            end_icon_svg = (
+                "<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'>"
+                "<circle cx='32' cy='32' r='29' fill='#A94442' stroke='#FBF6F0' stroke-width='4'/>"
+                "<rect x='20' y='20' width='24' height='24' fill='#FBF6F0'/>"
+                "</svg>"
+            )
+            start_icon_uri = "data:image/svg+xml;base64," + base64.b64encode(start_icon_svg.encode()).decode()
+            end_icon_uri = "data:image/svg+xml;base64," + base64.b64encode(end_icon_svg.encode()).decode()
+
+            icon_meta = {"width": 64, "height": 64, "anchorY": 32, "anchorX": 32}
+            start_row = journey_segment.iloc[[0]].copy()
+            start_row['icon_data'] = [{"url": start_icon_uri, **icon_meta}]
+            end_row = journey_segment.iloc[[last_idx]].copy()
+            end_row['icon_data'] = [{"url": end_icon_uri, **icon_meta}]
+            endpoints = pd.concat([start_row, end_row], ignore_index=True)
 
             layers = [
                 pdk.Layer(
@@ -403,14 +423,13 @@ if origin_search and dest_search:
                     pickable=True
                 ),
                 pdk.Layer(
-                    "TextLayer",
+                    "IconLayer",
                     endpoints,
                     get_position="[Stop_lon, Stop_lat]",
-                    get_text="stop_label",
-                    get_size=16,
-                    get_color=[20, 33, 61],
-                    get_pixel_offset=[0, -18],
-                    get_alignment_baseline="'bottom'",
+                    get_icon="icon_data",
+                    get_size=34,
+                    size_scale=1,
+                    pickable=True,
                 ),
             ]
             st.pydeck_chart(pdk.Deck(
