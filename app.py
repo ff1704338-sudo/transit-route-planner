@@ -1,3 +1,5 @@
+import datetime
+
 import streamlit as st
 import pandas as pd
 import pydeck as pdk
@@ -81,6 +83,17 @@ st.markdown("""
         border-right: 6px solid transparent;
         border-top: 7px solid #14213D;
         pointer-events: none;
+    }
+
+    /* Time input box: match the other sidebar controls */
+    section[data-testid="stSidebar"] .stTimeInput input {
+        background-color: #F4EBE1 !important;
+        color: #000000 !important;
+        border-radius: 6px;
+        border: 1px solid #7A6250;
+    }
+    section[data-testid="stSidebar"] .stTimeInput svg {
+        fill: #14213D !important;
     }
 
     /* Headings - dark navy, matching hero title on the homepage */
@@ -193,130 +206,194 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
+def _time_to_minutes(t):
+    """Convert an 'H:MM:SS' / 'HH:MM:SS' string (hours may exceed 24 for
+    past-midnight trips) into minutes-since-midnight (float)."""
+    h, m, s = str(t).split(':')
+    return int(h) * 60 + int(m) + int(s) / 60
+
+
 @st.cache_data
 def load_data():
-    # Placeholder: Replace with your actual file pathway
-    return pd.read_csv('route_planner_map_data_small.csv')
+    # Trip-level data: every row is one stop on one specific scheduled trip,
+    # already in the correct sequential order for that trip (stop_seq).
+    # This is what lets us build a journey that never doubles back -
+    # we always slice a single real Trip_id rather than stitching together
+    # stops that happen to share a name across different trips/directions.
+    data = pd.read_csv('route_planner_trips.csv', low_memory=False)
+    data['_minutes'] = data['Arrival_time'].apply(_time_to_minutes)
+    return data
 
 df = load_data()
 
 st.title("📍 Transit Route & Sentiment Planner")
 
-# Sidebar for Search
+# --- Sidebar: Journey Planner ---
 st.sidebar.header("Journey Planner")
-origin_search = st.sidebar.selectbox("Select Origin:", options=[""] + sorted(df['Stop_search'].unique().tolist()))
-dest_search = st.sidebar.selectbox("Select Destination:", options=[""] + sorted(df['Stop_search'].unique().tolist()))
+
+all_stops = sorted(df['Stop_search'].unique().tolist())
+origin_search = st.sidebar.selectbox("Select Origin:", options=[""] + all_stops)
+dest_search = st.sidebar.selectbox("Select Destination:", options=[""] + all_stops)
+
+service_day_options = {
+    "Weekday (Mon-Fri)": "Weekday",
+    "Weekend / Holiday": "Weekend/Holiday",
+}
+service_day_label = st.sidebar.selectbox("Travel Day:", options=list(service_day_options.keys()))
+service_day = service_day_options[service_day_label]
+
+desired_time = st.sidebar.time_input("Preferred Departure Time:", value=datetime.time(10, 0))
+desired_minutes = desired_time.hour * 60 + desired_time.minute
 
 if origin_search and dest_search:
     if origin_search == dest_search:
         st.warning("Origin and Destination cannot be the same.")
     else:
-        # Find shared routes
-        origin_routes = set(df[df['Stop_search'] == origin_search]['Route_long_name'])
-        dest_routes = set(df[df['Stop_search'] == dest_search]['Route_long_name'])
-        common_routes = list(origin_routes.intersection(dest_routes))
+        # --- Find every scheduled trip (on the chosen day) that actually
+        # visits the origin BEFORE the destination in its own stop
+        # sequence. This guarantees the journey travels in one direction
+        # and never backtracks through a stop it already passed. ---
+        day_df = df[df['Service_Days'] == service_day]
 
-        if common_routes:
-            selected_route = st.selectbox("Available Route Suggestions:", common_routes)
-            route_data = df[df['Route_long_name'] == selected_route].drop_duplicates(subset=['Stop_search'])
-            stops_list = route_data['Stop_search'].tolist()
+        origin_rows = day_df[day_df['Stop_search'] == origin_search][
+            ['Trip_id', 'stop_seq', '_minutes', 'Route_long_name']
+        ].rename(columns={'stop_seq': 'o_seq', '_minutes': 'o_min'})
 
-            try:
-                idx_start = stops_list.index(origin_search)
-                idx_end = stops_list.index(dest_search)
+        dest_rows = day_df[day_df['Stop_search'] == dest_search][
+            ['Trip_id', 'stop_seq']
+        ].rename(columns={'stop_seq': 'd_seq'})
 
-                # Get the journey segment
-                if idx_start < idx_end:
-                    journey_segment = route_data.iloc[idx_start:idx_end+1]
-                else:
-                    journey_segment = route_data.iloc[idx_end:idx_start+1][::-1]
+        candidates = origin_rows.merge(dest_rows, on='Trip_id')
+        candidates = candidates[candidates['o_seq'] < candidates['d_seq']]
 
-                # --- OVERALL SUMMARY SECTION ---
-                st.subheader("🏁 Overall Journey Summary")
-
-                # Calculate averages for the segment
-                avg_journey_rating = journey_segment['avg_rating'].mean()
-                avg_journey_sentiment = journey_segment['avg_sentiment'].mean()
-
-                # Determine category for overall sentiment (kept legible against cream/navy theme)
-                if avg_journey_sentiment > 0.05:
-                    overall_cat = "Positive"
-                    overall_color = "#2E6F40"  # Soft forest green
-                elif avg_journey_sentiment < -0.05:
-                    overall_cat = "Negative"
-                    overall_color = "#A94442"  # Muted deep red
-                else:
-                    overall_cat = "Neutral"
-                    overall_color = "#C38D39"  # Warm amber/ochre
-
-                # Display Metrics
-                m_col1, m_col2, m_col3 = st.columns(3)
-                m_col1.metric("Total Stops", len(journey_segment))
-                m_col2.metric("Overall Journey Rating", f"{avg_journey_rating:.2f} / 5.0")
-                m_col3.markdown(
-                    f"""
-                    <div style='background-color:#FFFFFF; border:1px solid #E3D5C6; border-radius:10px;
-                                padding:16px 18px; box-shadow: 0 2px 6px rgba(74, 62, 61, 0.08);'>
-                        <span style='color:#14213D; font-weight:600; font-size:14px;'>Overall Sentiment</span><br>
-                        <span style='font-size:24px; color:{overall_color}; font-weight:800;'>{overall_cat}</span>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-
-                st.divider()
-
-                # --- MAP VIEW ---
-                st.subheader(f"Map View: {selected_route}")
-                view_state = pdk.ViewState(
-                    latitude=journey_segment['Stop_lat'].mean(),
-                    longitude=journey_segment['Stop_lon'].mean(),
-                    zoom=13, pitch=0
-                )
-
-                # Pydeck layers themed to match the website (brown paths, cream/white stop points)
-                layers = [
-                    pdk.Layer(
-                        "PathLayer",
-                        [{"path": journey_segment[['Stop_lon', 'Stop_lat']].values.tolist()}],
-                        get_color=[173, 139, 106],  # Taupe accent, matches nav bar
-                        width_min_pixels=6
-                    ),
-                    pdk.Layer(
-                        "ScatterplotLayer",
-                        journey_segment,
-                        get_position="[Stop_lon, Stop_lat]",
-                        get_color=[251, 246, 240],  # Cream inner color
-                        get_line_color=[20, 33, 61],  # Navy border stroke, matches hero heading
-                        stroked=True,
-                        get_radius=80,
-                        pickable=True
-                    ),
-                ]
-                st.pydeck_chart(pdk.Deck(
-                    map_provider="carto",
-                    map_style="light",
-                    layers=layers,
-                    initial_view_state=view_state,
-                    tooltip={"text": "{Stop_search}"}
-                ))
-
-                # --- STEP-BY-STEP DIRECTIONS ---
-                st.subheader("Journey Steps & Individual Station Sentiment")
-                for i, (_, row) in enumerate(journey_segment.iterrows()):
-                    label = "START" if i == 0 else "END" if i == len(journey_segment)-1 else f"Stop {i+1}"
-                    with st.expander(f"{label}: {row['Stop_search']}"):
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.write(f"**Rating:** {row['avg_rating']:.1f} ⭐" if pd.notnull(row['avg_rating']) else "**Rating:** N/A")
-                        with col2:
-                            s = row['main_sentiment'] if pd.notnull(row['main_sentiment']) else "No Reviews"
-                            c = "green" if s == "Positive" else "red" if s == "Negative" else "orange"
-                            st.markdown(f"**Vibe:** :{c}[{s}]")
-
-            except ValueError:
-                st.error("Sequence error. Try another route.")
+        if candidates.empty:
+            st.error(
+                f"No direct route connects these locations on a "
+                f"{service_day_label.lower()}. Try the other travel day, "
+                f"or a different origin/destination."
+            )
         else:
-            st.error("No direct route connects these locations.")
+            # Circular time distance so 11:55pm vs 12:05am is "10 min", not ~1430.
+            raw_diff = (candidates['o_min'] - desired_minutes) % 1440
+            candidates = candidates.copy()
+            candidates['diff'] = raw_diff.apply(lambda x: min(x, 1440 - x))
+
+            # Best (closest-to-preferred-time) trip per available route
+            best_idx = candidates.groupby('Route_long_name')['diff'].idxmin()
+            best_per_route = candidates.loc[best_idx].sort_values('diff')
+
+            def fmt_hm(total_minutes):
+                total_minutes = int(round(total_minutes)) % 1440
+                return f"{total_minutes // 60:02d}:{total_minutes % 60:02d}"
+
+            route_options = []
+            route_label_map = {}
+            for _, r in best_per_route.iterrows():
+                label = f"{r['Route_long_name']} — departs {fmt_hm(r['o_min'])} ({int(r['diff'])} min from preferred time)"
+                route_options.append(label)
+                route_label_map[label] = r
+
+            selected_label = st.selectbox("Available Route Suggestions:", route_options)
+            chosen = route_label_map[selected_label]
+            selected_route = chosen['Route_long_name']
+            trip_id = chosen['Trip_id']
+            o_seq, d_seq = chosen['o_seq'], chosen['d_seq']
+
+            # Slice the ONE real trip's own rows, in order - this is what
+            # fixes the old bug where the map could jump back to an
+            # already-visited stop.
+            journey_segment = (
+                df[(df['Trip_id'] == trip_id) & (df['stop_seq'] >= o_seq) & (df['stop_seq'] <= d_seq)]
+                .sort_values('stop_seq')
+                .reset_index(drop=True)
+            )
+
+            # --- OVERALL SUMMARY SECTION ---
+            st.subheader("🏁 Overall Journey Summary")
+
+            avg_journey_rating = journey_segment['avg_rating'].mean()
+            avg_journey_sentiment = journey_segment['avg_sentiment'].mean()
+
+            if pd.notnull(avg_journey_sentiment) and avg_journey_sentiment > 0.05:
+                overall_cat = "Positive"
+                overall_color = "#2E6F40"
+            elif pd.notnull(avg_journey_sentiment) and avg_journey_sentiment < -0.05:
+                overall_cat = "Negative"
+                overall_color = "#A94442"
+            else:
+                overall_cat = "Neutral"
+                overall_color = "#C38D39"
+
+            m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+            m_col1.metric("Total Stops", len(journey_segment))
+            m_col2.metric(
+                "Overall Journey Rating",
+                f"{avg_journey_rating:.2f} / 5.0" if pd.notnull(avg_journey_rating) else "N/A"
+            )
+            m_col3.metric("Departs", fmt_hm(chosen['o_min']), f"{int(chosen['diff'])} min from preferred")
+            m_col4.markdown(
+                f"""
+                <div style='background-color:#FFFFFF; border:1px solid #E3D5C6; border-radius:10px;
+                            padding:16px 18px; box-shadow: 0 2px 6px rgba(74, 62, 61, 0.08);'>
+                    <span style='color:#14213D; font-weight:600; font-size:14px;'>Overall Sentiment</span><br>
+                    <span style='font-size:24px; color:{overall_color}; font-weight:800;'>{overall_cat}</span>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            st.caption(
+                f"Showing the {service_day_label.lower()} trip on **{selected_route}** closest to your "
+                f"preferred time of {desired_time.strftime('%H:%M')}."
+            )
+
+            st.divider()
+
+            # --- MAP VIEW ---
+            st.subheader(f"Map View: {selected_route}")
+            view_state = pdk.ViewState(
+                latitude=journey_segment['Stop_lat'].mean(),
+                longitude=journey_segment['Stop_lon'].mean(),
+                zoom=13, pitch=0
+            )
+
+            layers = [
+                pdk.Layer(
+                    "PathLayer",
+                    [{"path": journey_segment[['Stop_lon', 'Stop_lat']].values.tolist()}],
+                    get_color=[173, 139, 106],
+                    width_min_pixels=6
+                ),
+                pdk.Layer(
+                    "ScatterplotLayer",
+                    journey_segment,
+                    get_position="[Stop_lon, Stop_lat]",
+                    get_color=[251, 246, 240],
+                    get_line_color=[20, 33, 61],
+                    stroked=True,
+                    get_radius=80,
+                    pickable=True
+                ),
+            ]
+            st.pydeck_chart(pdk.Deck(
+                map_provider="carto",
+                map_style="light",
+                layers=layers,
+                initial_view_state=view_state,
+                tooltip={"text": "{Stop_search}\n{Arrival_time}"}
+            ))
+
+            # --- STEP-BY-STEP DIRECTIONS ---
+            st.subheader("Journey Steps & Individual Station Sentiment")
+            for i, (_, row) in enumerate(journey_segment.iterrows()):
+                label = "START" if i == 0 else "END" if i == len(journey_segment) - 1 else f"Stop {i+1}"
+                with st.expander(f"{label}: {row['Stop_search']}  •  {row['Arrival_time']}"):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.write(f"**Rating:** {row['avg_rating']:.1f} ⭐" if pd.notnull(row['avg_rating']) else "**Rating:** N/A")
+                    with col2:
+                        s = row['main_sentiment'] if pd.notnull(row['main_sentiment']) else "No Reviews"
+                        c = "green" if s == "Positive" else "red" if s == "Negative" else "orange"
+                        st.markdown(f"**Vibe:** :{c}[{s}]")
 else:
     st.info("Select Origin and Destination in the sidebar.")
