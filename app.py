@@ -231,7 +231,7 @@ service_day_options = {
 service_day_label = st.sidebar.selectbox("Travel Day:", options=list(service_day_options.keys()))
 service_day = service_day_options[service_day_label]
 
-time_slot_options = [f"{h:02d}:{m:02d}" for h in range(24) for m in (0, 15, 30, 45)]
+time_slot_options = [f"{h:02d}:{m:02d}" for h in range(24) for m in range(60)]
 selected_time_str = st.sidebar.selectbox(
     "Preferred Departure Time:",
     options=time_slot_options,
