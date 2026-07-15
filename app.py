@@ -85,17 +85,6 @@ st.markdown("""
         pointer-events: none;
     }
 
-    /* Time input box: match the other sidebar controls */
-    section[data-testid="stSidebar"] .stTimeInput input {
-        background-color: #F4EBE1 !important;
-        color: #000000 !important;
-        border-radius: 6px;
-        border: 1px solid #7A6250;
-    }
-    section[data-testid="stSidebar"] .stTimeInput svg {
-        fill: #14213D !important;
-    }
-
     /* Headings - dark navy, matching hero title on the homepage */
     h1, h2, h3, h4, h5, h6 {
         color: #14213D !important;
@@ -242,7 +231,20 @@ service_day_options = {
 service_day_label = st.sidebar.selectbox("Travel Day:", options=list(service_day_options.keys()))
 service_day = service_day_options[service_day_label]
 
-desired_time = st.sidebar.time_input("Preferred Departure Time:", value=datetime.time(10, 0))
+time_slot_options = [f"{h:02d}:{m:02d}" for h in range(24) for m in (0, 15, 30, 45)]
+selected_time_str = st.sidebar.selectbox(
+    "Preferred Departure Time:",
+    options=time_slot_options,
+    index=None,
+    placeholder="Choose a preferred time",
+)
+if selected_time_str:
+    _hh, _mm = map(int, selected_time_str.split(':'))
+    desired_time = datetime.time(_hh, _mm)
+else:
+    # No preference chosen yet - fall back to a neutral default (10:00)
+    # purely for the "closest departure" sorting math below.
+    desired_time = datetime.time(10, 0)
 desired_minutes = desired_time.hour * 60 + desired_time.minute
 
 if origin_search and dest_search:
