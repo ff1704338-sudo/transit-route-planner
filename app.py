@@ -314,17 +314,21 @@ if origin_search and dest_search:
             st.subheader("🏁 Overall Journey Summary")
 
             avg_journey_rating = journey_segment['avg_rating'].mean()
-            avg_journey_sentiment = journey_segment['avg_sentiment'].mean()
 
-            if pd.notnull(avg_journey_sentiment) and avg_journey_sentiment > 0.05:
-                overall_cat = "Positive"
-                overall_color = "#2E6F40"
-            elif pd.notnull(avg_journey_sentiment) and avg_journey_sentiment < -0.05:
-                overall_cat = "Negative"
-                overall_color = "#A94442"
-            else:
-                overall_cat = "Neutral"
-                overall_color = "#C38D39"
+            # Majority vote across each stop's own sentiment label, rather
+            # than thresholding the averaged sentiment score - e.g. if most
+            # stops on this journey are labelled Neutral, the overall vibe
+            # is Neutral even if a couple of stops are Positive/Negative.
+            sentiment_counts = journey_segment['main_sentiment'].dropna().value_counts()
+
+            overall_cat = sentiment_counts.idxmax() if not sentiment_counts.empty else "Neutral"
+
+            sentiment_colors = {
+                "Positive": "#2E6F40",
+                "Negative": "#A94442",
+                "Neutral": "#C38D39",
+            }
+            overall_color = sentiment_colors.get(overall_cat, "#C38D39")
 
             m_col1, m_col2, m_col3, m_col4 = st.columns(4)
             m_col1.metric("Total Stops", len(journey_segment))
@@ -359,6 +363,28 @@ if origin_search and dest_search:
                 zoom=13, pitch=0
             )
 
+            last_idx = len(journey_segment) - 1
+
+            def _marker_color(i):
+                if i == 0:
+                    return [46, 111, 64]      # green - START
+                if i == last_idx:
+                    return [169, 68, 66]      # red - END
+                return [251, 246, 240]        # cream - intermediate stop
+
+            def _marker_radius(i):
+                return 140 if i in (0, last_idx) else 80
+
+            journey_segment = journey_segment.copy()
+            journey_segment['marker_color'] = [_marker_color(i) for i in range(len(journey_segment))]
+            journey_segment['marker_radius'] = [_marker_radius(i) for i in range(len(journey_segment))]
+            journey_segment['stop_label'] = [
+                "START" if i == 0 else "END" if i == last_idx else ""
+                for i in range(len(journey_segment))
+            ]
+
+            endpoints = journey_segment.iloc[[0, last_idx]]
+
             layers = [
                 pdk.Layer(
                     "PathLayer",
@@ -370,11 +396,21 @@ if origin_search and dest_search:
                     "ScatterplotLayer",
                     journey_segment,
                     get_position="[Stop_lon, Stop_lat]",
-                    get_color=[251, 246, 240],
+                    get_color="marker_color",
                     get_line_color=[20, 33, 61],
                     stroked=True,
-                    get_radius=80,
+                    get_radius="marker_radius",
                     pickable=True
+                ),
+                pdk.Layer(
+                    "TextLayer",
+                    endpoints,
+                    get_position="[Stop_lon, Stop_lat]",
+                    get_text="stop_label",
+                    get_size=16,
+                    get_color=[20, 33, 61],
+                    get_pixel_offset=[0, -18],
+                    get_alignment_baseline="'bottom'",
                 ),
             ]
             st.pydeck_chart(pdk.Deck(
@@ -388,7 +424,7 @@ if origin_search and dest_search:
             # --- STEP-BY-STEP DIRECTIONS ---
             st.subheader("Journey Steps & Individual Station Sentiment")
             for i, (_, row) in enumerate(journey_segment.iterrows()):
-                label = "START" if i == 0 else "END" if i == len(journey_segment) - 1 else f"Stop {i+1}"
+                label = "🟢 START" if i == 0 else "🔴 END" if i == len(journey_segment) - 1 else f"Stop {i+1}"
                 with st.expander(f"{label}: {row['Stop_search']}  •  {row['Arrival_time']}"):
                     col1, col2 = st.columns(2)
                     with col1:
